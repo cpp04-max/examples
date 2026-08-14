@@ -56,6 +56,28 @@ def _ensure_columns(df: pd.DataFrame, cols: Sequence[str]) -> None:
         raise KeyError(f"Missing columns ({len(missing)}): {missing[:30]}")
 
 
+def _align_timestamp_to_series_timezone(
+    value: str | pd.Timestamp,
+    series_tz,
+) -> pd.Timestamp:
+    """Return a Timestamp comparable with a datetime Series' timezone convention.
+
+    If the Series is timezone-aware, a naive boundary is interpreted in the same local
+    timezone as the Series (e.g. Europe/London), while an aware boundary is converted
+    to that timezone. If the Series is timezone-naive, an aware boundary is converted
+    to UTC and then made naive so pandas never compares aware and naive timestamps.
+    """
+    ts = pd.Timestamp(value)
+    if series_tz is not None:
+        if ts.tzinfo is None:
+            return ts.tz_localize(series_tz)
+        return ts.tz_convert(series_tz)
+
+    if ts.tzinfo is not None:
+        return ts.tz_convert("UTC").tz_localize(None)
+    return ts
+
+
 def make_time_train_mask(
     df: pd.DataFrame,
     *,
@@ -63,12 +85,21 @@ def make_time_train_mask(
     train_start: str | pd.Timestamp,
     train_end: str | pd.Timestamp,
 ) -> np.ndarray:
-    """Boolean mask for [train_start, train_end)."""
+    """Boolean mask for [train_start, train_end), robust to timezone-aware timestamps.
+
+    Example: if ``df[time_col]`` has dtype ``datetime64[ns, Europe/London]`` and
+    ``train_start='2025-01-01'`` / ``train_end='2025-07-01'`` are timezone-naive,
+    the boundaries are localized to Europe/London before comparison. This avoids
+    ``TypeError: Invalid comparison between dtype=datetime64[ns, Europe/London] and Timestamp``.
+    """
     if time_col not in df.columns:
         raise KeyError(time_col)
+
     t = pd.to_datetime(df[time_col], errors="coerce")
-    start = pd.Timestamp(train_start)
-    end = pd.Timestamp(train_end)
+    series_tz = getattr(t.dt, "tz", None)
+    start = _align_timestamp_to_series_timezone(train_start, series_tz)
+    end = _align_timestamp_to_series_timezone(train_end, series_tz)
+
     if end <= start:
         raise ValueError("train_end must be after train_start")
     return ((t >= start) & (t < end)).to_numpy(dtype=bool, copy=False)
@@ -256,7 +287,6 @@ def fit_asinh_scales(
             raise ValueError(f"No finite TRAIN values for signed feature: {c}")
         s = float(np.median(np.abs(vals)))
         if not np.isfinite(s) or s < min_scale:
-            # Fallback keeps the transform defined for mostly-zero signed features.
             nonzero = np.abs(vals[np.abs(vals) > min_scale])
             s = float(np.median(nonzero)) if len(nonzero) else 1.0
         scales[c] = max(s, min_scale)
