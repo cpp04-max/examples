@@ -1,0 +1,31 @@
+Package: lob_balanced_ic_checkpoint_selection_v1_0_cpp_v022
+Built: 2026-08-22
+Base: lob_training_hparam_grid_v1_0_cpp_v021_verified_20260820
+
+Files included
+--------------
+- lob_experiment_config.py
+- lob_ts_training/config.py
+- lob_ts_training/data_utils.py
+- lob_ts_training/experiment_utils.py
+- lob_ts_training/train_utils.py
+- lob_ts_training/training_status_utils.py
+- lob_ts_training.ipynb
+- lob_ts_training_status_with_curves.ipynb
+- CONFIG_DIFF_v021_to_v022.txt
+- CODE_DIFF_SUMMARY_v022.txt
+- PACKAGE_MANIFEST_lob_balanced_ic_checkpoint_selection_v1_0_cpp_v022.txt
+- file_hashes.txt
+
+Primary selection rule
+----------------------
+An epoch is deployable only if TRAIN IC and TEST IC both exceed their configured minima.
+Among deployable epochs:
+  balanced_ic = min(train_ic, test_ic)^2 / max(train_ic, test_ic)
+best.pt is the epoch with maximum balanced_ic.
+
+Status notebook semantics
+-------------------------
+- Rank actual run/checkpoint candidates independently.
+- Repeated seeds are not averaged or clustered for ranking.
+- Main epoch chart overlays learning rate on a secondary y-axis with TRAIN IC, TEST IC and Balanced IC.
