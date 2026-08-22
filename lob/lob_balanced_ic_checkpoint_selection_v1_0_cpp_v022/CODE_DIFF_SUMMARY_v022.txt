@@ -1,0 +1,79 @@
+v022: Balanced TRAIN+TEST IC checkpoint selection + individual-run status ranking
+===============================================================================
+
+Bundle version:
+  lob_balanced_ic_checkpoint_selection_v1_0_cpp_v022
+Core API:
+  balanced_ic_checkpoint_selection_v1_0_cpp_v022
+Experiment VERSION_NAME:
+  lob_exp_5m_volfloor_direct_huber_tail_intercept_hparam_grid_balanced_ic_v022
+
+Key changes vs v021
+-------------------
+1. Deployable checkpoint selection is decoupled from early stopping.
+   - Existing training.selection_metric still controls TRAIN/TEST early-stopping patience.
+   - New checkpoint_selection_mode defaults to balanced_ic.
+
+2. Balanced IC selection uses the SAME fixed eval-mode TRAIN and TEST monitors at each epoch.
+   Eligibility (strict):
+       train_ic > checkpoint_min_train_ic
+       test_ic  > checkpoint_min_test_ic
+   Defaults are both 0.0, so zero/negative IC on either side is rejected.
+
+   For eligible epochs:
+       weak_ic       = min(train_ic, test_ic)
+       balance_ratio = weak_ic / max(train_ic, test_ic)
+       balanced_ic   = weak_ic * balance_ratio
+                     = min(train_ic, test_ic)^2 / max(train_ic, test_ic)
+
+   best.pt = eligible epoch with maximum balanced_ic.
+
+3. No-valid-checkpoint behavior is explicit.
+   - If no epoch passes both TRAIN and TEST thresholds, training completes with diagnostics.
+   - selection_valid=False and selection_failure_reason=no_valid_balanced_checkpoint.
+   - No deployable best.pt is created for that run.
+
+4. metrics.jsonl / status.json / best.pt / summary.json now persist checkpoint-selection diagnostics:
+   - checkpoint_selection_mode
+   - checkpoint_min_train_ic / checkpoint_min_test_ic
+   - eligible
+   - train_ic / test_ic
+   - weak_ic
+   - balance_ratio
+   - balanced_ic
+   - ic_gap = test_ic - train_ic
+
+5. Status notebook ranking is now individual-run only.
+   - Every repeat seed remains its own run/checkpoint candidate.
+   - No seed mean/std, seed stability matrix, or model-group clustering is used in primary ranking.
+   - Seed is metadata only.
+
+6. New status views/plots:
+   - Individual-run ranking table: TRAIN IC, TEST IC, Balanced IC, gap, verdict.
+   - TRAIN-vs-TEST IC scatter for selected checkpoints.
+   - Paired TRAIN-vs-TEST IC comparison per run.
+   - Balanced IC ranking chart per actual run.
+   - Cross-run Balanced IC curves by epoch, without seed aggregation.
+   - Specific-run epoch chart with TRAIN IC + TEST IC + Balanced IC on the left axis and Learning Rate on a secondary right axis.
+   - Separate TRAIN-vs-TEST loss diagnostic.
+
+7. v021 generic TRAINING_HPARAM_GRID is retained unchanged in behavior.
+
+Compatibility / unchanged behavior
+----------------------------------
+- Fixed stratified-random TRAIN/TEST monitor membership remains unchanged.
+- OOS remains isolated from training/checkpoint selection.
+- Tail-weighted regression loss remains unchanged.
+- TRAIN-only intercept calibration remains unchanged and is applied only to a valid selected best.pt.
+- Cosine scheduler behavior remains unchanged.
+- Model architectures, models.py, launch_utils.py, validation_utils.py and backtest_utils.py are not changed by this bundle.
+
+Verification
+------------
+- Python py_compile: PASS for all six Python files.
+- Both notebooks: all code cells AST parse: PASS.
+- COMMON_CONFIG['training'] keys vs TrainConfig fields: PASS.
+- Balanced IC formula unit tests: PASS, including sign/zero rejection.
+- Individual-run ranking synthetic test: PASS; repeated seeds remain separate rows.
+- TRAIN/TEST scatter, paired comparison, Balanced IC ranking and cross-run curve plotting tests: PASS.
+- Specific-run TRAIN/TEST/Balanced IC + LR dual-axis chart test: PASS.
