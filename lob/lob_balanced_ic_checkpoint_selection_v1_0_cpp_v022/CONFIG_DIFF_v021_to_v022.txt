@@ -1,0 +1,39 @@
+--- /mnt/data/v021_unpacked/lob_training_hparam_grid_v1_0_cpp_v021/lob_experiment_config.py	2026-08-19 17:47:15.000000000 +0000
++++ /mnt/data/lob_balanced_ic_checkpoint_selection_v1_0_cpp_v022/lob_experiment_config.py	2026-08-22 11:23:28.094926956 +0000
+@@ -8,12 +8,12 @@
+ from pathlib import Path
+ import re
+ 
+-TRAINING_CODE_BUNDLE_VERSION = "lob_training_hparam_grid_v1_0_cpp_v021"
++TRAINING_CODE_BUNDLE_VERSION = "lob_balanced_ic_checkpoint_selection_v1_0_cpp_v022"
+ 
+ # -----------------------------------------------------------------------------
+ # Experiment namespace
+ # -----------------------------------------------------------------------------
+-VERSION_NAME = "lob_exp_5m_volfloor_direct_huber_tail_intercept_hparam_grid_v021"
++VERSION_NAME = "lob_exp_5m_volfloor_direct_huber_tail_intercept_hparam_grid_balanced_ic_v022"
+ BASE_EXPERIMENT_DIR = "/tmp/lob_experiments"
+ 
+ # One source of truth for the prediction horizon used by feature engineering/training.
+@@ -208,8 +208,20 @@
+         "early_stopping_policy": "either",     # either | both | test_only | train_only
+         "early_stopping_min_delta_rel": 0.002,  # 0.2% relative improvement to reset patience
+ 
+-        # TEST monitor remains the only checkpoint-selection source.
++        # Early-stopping progress metric only. Checkpoint selection is decoupled below.
++        # loss: lower TRAIN/TEST monitor loss resets patience; ic: higher IC resets patience.
+         "selection_metric": "loss",
++
++        # v022 deployable checkpoint selection: require positive/credible IC on BOTH fixed
++        # TRAIN and TEST monitors, then maximize a balance-penalized weak-side IC.
++        #   weak_ic      = min(train_ic, test_ic)
++        #   balance      = weak_ic / max(train_ic, test_ic)
++        #   balanced_ic  = weak_ic * balance = weak_ic**2 / max(train_ic, test_ic)
++        # An epoch is eligible only when train_ic > checkpoint_min_train_ic AND
++        # test_ic > checkpoint_min_test_ic. Defaults of 0 reject sign-inconsistent models.
++        "checkpoint_selection_mode": "balanced_ic",  # balanced_ic | test_metric (legacy fallback)
++        "checkpoint_min_train_ic": 0.0,
++        "checkpoint_min_test_ic": 0.0,
+         "seed": 2026,
+         "log_every": 100,
+     },
