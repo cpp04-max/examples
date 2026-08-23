@@ -22,10 +22,10 @@ jobs:
         run: |
           set -euo pipefail
           cat lob/v026_staging/part*.b64 > /tmp/v026.b64
-          base64 --decode /tmp/v026.b64 > /tmp/v026.zip
+          base64 --decode /tmp/v026.b64 > /tmp/v026.tar.xz
           rm -rf /tmp/v026_extract
           mkdir -p /tmp/v026_extract
-          unzip -q /tmp/v026.zip -d /tmp/v026_extract
+          tar -xJf /tmp/v026.tar.xz -C /tmp/v026_extract
           src=/tmp/v026_extract/lob_notebook_eval_model_selector_v1_0_cpp_v026
           test -d "$src"
           find "$src" -type d -name '__pycache__' -prune -exec rm -rf {} +
